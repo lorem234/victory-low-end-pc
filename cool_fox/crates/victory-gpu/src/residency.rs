@@ -97,9 +97,9 @@ pub(crate) fn limited_host_ram() -> bool {
 
 fn next_pressure(was: bool, physical: u64, commit: u64) -> bool {
     if was {
-        physical < 5 * GIB || commit < 6 * GIB
+        physical < 6 * GIB || commit < 6 * GIB
     } else {
-        physical <= 3 * GIB || commit <= 4 * GIB
+        physical <= 4 * GIB || commit <= 4 * GIB
     }
 }
 
@@ -180,11 +180,12 @@ mod tests {
     #[test]
     fn either_constraint_enters_pressure_and_both_must_recover() {
         assert!(next_pressure(false, 12 * GIB, 4 * GIB));
-        assert!(next_pressure(false, 3 * GIB, 16 * GIB));
+        assert!(next_pressure(false, 4 * GIB, 16 * GIB));
         assert!(next_pressure(true, 4 * GIB, 7 * GIB));
         assert!(next_pressure(true, 6 * GIB, 5 * GIB));
-        assert!(!next_pressure(true, 5 * GIB, 6 * GIB));
-        assert!(!next_pressure(false, 4 * GIB, 5 * GIB));
+        assert!(next_pressure(true, 5 * GIB, 6 * GIB));
+        assert!(!next_pressure(true, 6 * GIB, 6 * GIB));
+        assert!(!next_pressure(false, 5 * GIB, 5 * GIB));
     }
 
     #[test]

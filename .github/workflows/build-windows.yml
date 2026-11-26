@@ -30,6 +30,8 @@ jobs:
           cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib pipeline::make::tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib dynamic_slots_
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib residency::tests
 
       - name: Test Wave32 shader translation
         working-directory: cool_fox

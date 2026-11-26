@@ -26,8 +26,8 @@ $settings = [ordered]@{
     VICTORY_CARD_BUFFERS_MIN_KB = '64'
     # Commit-pressure guards for Windows: keep idle staging blocks and preludes low
     # so commit headroom isn't exhausted before the scene runs.
-    VICTORY_STAGING_KEPT        = '4'
-    VICTORY_MAX_PRELUDES        = '32'
+    VICTORY_STAGING_KEPT        = '2'
+    VICTORY_MAX_PRELUDES        = '16'
     VICTORY_DISPLAY_MODE        = $DisplayMode
     # Wave-wide lowering has caused device resets on this backend.
     VICTORY_WAVE_WIDE           = '0'
