@@ -112,6 +112,7 @@ impl Made {
 }
 
 pub(crate) struct HostHeap {
+    pub(crate) id: u64,
     pub(crate) buffer_sweep: Mutex<crate::draw::BufferSweep>,
     pub(crate) buffer_frame: std::sync::atomic::AtomicU64,
     pub(crate) heap: ID3D12DescriptorHeap,
@@ -1590,7 +1591,9 @@ impl HostHeap {
                 Some((buffer, gpu, data as usize))
             })
             .flatten();
+        static NEXT_HEAP_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         let h = HostHeap {
+            id: NEXT_HEAP_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             buffer_sweep: Mutex::default(),
             buffer_frame: std::sync::atomic::AtomicU64::new(u64::MAX),
             heap,
@@ -2788,6 +2791,13 @@ impl HostHeap {
             self.free.fetch_add(given, std::sync::atomic::Ordering::Relaxed);
             self.too_long.store(u32::MAX, std::sync::atomic::Ordering::Relaxed);
             slots.fill(false);
+        }
+    }
+
+    /// A title heap address can be reused while an old list still owns slots.
+    pub(crate) fn release_for(&self, id: u64, first: u32, n: u32) {
+        if self.id == id {
+            self.release(first, n);
         }
     }
 
@@ -5709,6 +5719,20 @@ mod tests {
         heap.release(a, 50);
         assert_eq!(heap.dynamic(50), Some(4));
         assert_eq!(heap.dynamic(40), Some(4 + heap.dynamic - 40));
+    }
+
+    #[test]
+    fn dynamic_slots_are_given_back_only_to_the_heap_that_took_them() {
+        let (Some(old), Some(new)) = (HostHeap::new(false, 4), HostHeap::new(false, 4)) else {
+            return;
+        };
+        let old_first = old.dynamic(1).unwrap();
+        let new_first = new.dynamic(new.dynamic).unwrap();
+        assert_eq!(old_first, new_first);
+        new.release_for(old.id, old_first, 1);
+        assert_eq!(new.dynamic(1), None);
+        new.release_for(new.id, new_first, 1);
+        assert_eq!(new.dynamic(1), Some(new_first));
     }
 
     #[test]

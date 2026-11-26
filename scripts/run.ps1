@@ -1,4 +1,5 @@
-# run.ps1 -Exe <victory.exe> -Game <your own copy's executable> [-Console series-s] [-MipDrop 3] [-KeepEnv]
+# run.ps1 -Exe <victory.exe> -Game <game.exe> [-Console series-s] [-MipDrop 3]
+#         [-DisplayMode 1280x720] [-CardBuffersMB 512] [-KeepEnv]
 # Starts the title with the fork's low-memory Windows settings.
 # NOT TESTED ON WINDOWS BY US: every measurement of this repository was made under Linux/Wine.
 # Every VICTORY_* variable already in your environment is cleared first (except the path variables
@@ -11,15 +12,14 @@ param(
     [Parameter(Mandatory)][string]$Game,
     [ValidateSet('series-s', 'series-x')][string]$Console = 'series-s',
     [ValidateRange(0, 3)][int]$MipDrop = 3,
+    [ValidateSet('1280x720', '1600x900', '1920x1080')][string]$DisplayMode = '1280x720',
+    [ValidateRange(0, 2048)][int]$CardBuffersMB = 512,
     [string]$Log = 'info',
     [switch]$KeepEnv
 )
 $settings = [ordered]@{
-    # Memory placement: mid-range defaults. The measured GTX 1660 values
-    # (CARD_BUFFERS_MB=1024, MipDrop=1) can exhaust commit on 6 GB laptop
-    # cards; drop them if you get "Insufficient system resources" (os error 1450).
-    # Measured on 6 GB: drop 1 with CARD_WINDOWS_MB=256. If video memory runs short, use -MipDrop 2 or 3.
-    VICTORY_CARD_BUFFERS_MB     = '512'
+    # Keep the hot copies on the GPU where the adapter budget permits.
+    VICTORY_CARD_BUFFERS_MB     = "$CardBuffersMB"
     VICTORY_CARD_WINDOWS_MB     = '256'
     VICTORY_TEXTURE_MIP_DROP    = "$MipDrop"
     VICTORY_LEVELS_ON_DEMAND    = '1'
@@ -28,17 +28,17 @@ $settings = [ordered]@{
     # so commit headroom isn't exhausted before the scene runs.
     VICTORY_STAGING_KEPT        = '4'
     VICTORY_MAX_PRELUDES        = '32'
-    # Report 1080p to the title to reduce GPU work and memory pressure.
-    VICTORY_DISPLAY_MODE        = '1920x1080'
+    VICTORY_DISPLAY_MODE        = $DisplayMode
     # Wave-wide lowering has caused device resets on this backend.
     VICTORY_WAVE_WIDE           = '0'
     # Keep command breadcrumbs and page faults for GPU resets.
     VICTORY_D3D12_DRED          = 'light'
-    # Parent fork's calibration for the indirect-light estimate.
-    VICTORY_AMBIENT             = '0.3'
+    # Keep DRED breadcrumbs without the per-allocation ledger.
+    VICTORY_BOOK                = '0'
+    VICTORY_AMBIENT             = '0.8'
     VICTORY_AMBIENT_AIR         = '1.5'
-    # Wait for texture writes before refreshing the host copy.
-    VICTORY_TEXTURE_NO_WAIT     = '0'
+    # Avoid stalling texture refreshes on the streaming thread's mapping lock.
+    VICTORY_TEXTURE_NO_WAIT     = '1'
     # The fork's launcher settings (speed).
     VICTORY_RELAY               = '2'
     VICTORY_RELAY_COPY          = '1'

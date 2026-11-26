@@ -22,9 +22,14 @@ jobs:
         working-directory: cool_fox
         run: cargo build --release --locked --target x86_64-pc-windows-msvc -p victory --features diagnostics
 
-      - name: Test GPU pipeline scheduling
+      - name: Test GPU scheduling and descriptor lifetime
         working-directory: cool_fox
-        run: cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib pipeline::make::tests
+        env:
+          VICTORY_D3D12_WARP: '1'
+        run: |
+          cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib pipeline::make::tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib dynamic_slots_
 
       - name: Test Wave32 shader translation
         working-directory: cool_fox
