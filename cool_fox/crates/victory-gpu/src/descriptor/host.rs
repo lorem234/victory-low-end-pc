@@ -4001,6 +4001,36 @@ fn buffer_uav(
     Some(Some(shadow.buffer.clone()))
 }
 
+/// Whether the host supports typed unordered writes in this format.
+fn typed_store(format: u32) -> bool {
+    use std::sync::OnceLock;
+
+    static FORMATS: [OnceLock<bool>; 256] = [const { OnceLock::new() }; 256];
+    let Some(slot) = FORMATS.get(format as usize) else {
+        return false;
+    };
+    *slot.get_or_init(|| {
+        let Some(host) = host() else {
+            return false;
+        };
+        let mut support = D3D12_FEATURE_DATA_FORMAT_SUPPORT {
+            Format: DXGI_FORMAT(format as i32),
+            ..Default::default()
+        };
+        // SAFETY: a feature query with the structure for D3D12_FEATURE_FORMAT_SUPPORT.
+        let result = unsafe {
+            host.device.CheckFeatureSupport(
+                D3D12_FEATURE_FORMAT_SUPPORT,
+                (&raw mut support).cast(),
+                size_of_val(&support) as u32,
+            )
+        };
+        result.is_ok()
+            && support.Support1.0 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW.0 != 0
+            && support.Support2.0 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE.0 != 0
+    })
+}
+
 /// Whether the host can make a shader (or unordered access) view of
 /// `texture` in `format` (none: the texture's own). The console allows any
 /// view; the host refuses (and removes the device for) views without the
@@ -4042,25 +4072,28 @@ fn fits(texture: &ID3D12Resource, mut format: Option<&mut DXGI_FORMAT>, unordere
         format.0 = linear as i32;
     }
     let view = format.as_ref().map_or(0, |f| f.0 as u32);
-    if view == 0 {
-        return !typeless;
+    if view == 0 && typeless {
+        return false;
     }
     // A view of a target whose format the host refuses, in the title's
     // format: in the stand-in the host copy has.
-    if view != own && crate::resource::target_format(view) == own {
-        if let Some(format) = format {
-            *format = d.Format;
-        }
-        return true;
-    }
-    if family(view) != family(own) {
+    let stand_in = view != 0 && view != own && crate::resource::target_format(view) == own;
+    if view != 0 && !stand_in && family(view) != family(own) {
         once!(view, own, "view format of another family");
         return false;
     }
+    let actual = if stand_in || !typeless { own } else { view };
+    // Drivers can reset the device when given an unsupported typed UAV.
+    // Check the host format that will actually be used, even for a view
+    // whose requested format already matches the resource.
+    if unordered && !typed_store(actual) {
+        once!(view = actual, own, "an unordered view in a format the host cannot store");
+        return false;
+    }
     if let Some(format) = format
-        && !typeless
+        && view != 0
     {
-        *format = d.Format;
+        *format = DXGI_FORMAT(actual as i32);
     }
     true
 }

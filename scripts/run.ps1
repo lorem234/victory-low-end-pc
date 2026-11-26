@@ -34,8 +34,8 @@ $settings = [ordered]@{
     VICTORY_WAVE_WIDE           = '0'
     # Keep command breadcrumbs and page faults for GPU resets.
     VICTORY_D3D12_DRED          = 'light'
-    # The fork's stand-in for ray-traced light (a skip: lighting is approximate).
-    VICTORY_AMBIENT             = '0.8'
+    # Parent fork's calibration for the indirect-light estimate.
+    VICTORY_AMBIENT             = '0.3'
     VICTORY_AMBIENT_AIR         = '1.5'
     # Wait for texture writes before refreshing the host copy.
     VICTORY_TEXTURE_NO_WAIT     = '0'

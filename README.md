@@ -141,8 +141,9 @@ the Rust toolchain pinned by cool_fox with the `x86_64-pc-windows-msvc` target,
 The Windows launcher defaults to a 1920×1080 display mode and waits for
 texture writes before refreshing GPU copies. It disables wave-wide lowering,
 which has caused GPU device resets on the D3D12 backend, and enables DRED
-breadcrumbs to record GPU progress if a reset recurs. The default lighting
-uses the fork's ambient estimate. The translated ray-tracing builder is
+breadcrumbs to record GPU progress if a reset recurs. The Windows build uses
+the parent fork's exact Wave32 cascade shadow translation and its calibrated
+ambient estimate (`VICTORY_AMBIENT=0.3`). The translated ray-tracing builder is
 experimental and has [known gaps](cool_fox/docs/fork-ray-tracing.md#known-gaps).
 
 > **The patches alone do not give the ~100 ms figure.** Most of the gain comes
