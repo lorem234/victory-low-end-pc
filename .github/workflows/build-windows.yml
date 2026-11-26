@@ -1,0 +1,41 @@
+name: Windows x64 build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Build the vendored VIctory runner
+        working-directory: cool_fox
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc -p victory --features diagnostics
+
+      - name: Assemble and verify the portable build
+        shell: pwsh
+        run: |
+          $package = Join-Path $env:RUNNER_TEMP 'victory-low-end-pc-windows-x64'
+          $scriptDir = Join-Path $package 'scripts'
+          New-Item -ItemType Directory -Path $scriptDir | Out-Null
+          Copy-Item -LiteralPath 'cool_fox/target/x86_64-pc-windows-msvc/release/victory.exe' -Destination $package
+          Copy-Item -LiteralPath 'README.md', 'LICENSE' -Destination $package
+          Copy-Item -LiteralPath 'scripts/run.cmd', 'scripts/run.ps1' -Destination $scriptDir
+          & (Join-Path $package 'victory.exe') --version
+
+      - name: Upload the Windows x64 build
+        uses: actions/upload-artifact@v6
+        with:
+          name: victory-low-end-pc-windows-x64
+          path: ${{ runner.temp }}/victory-low-end-pc-windows-x64/
+          if-no-files-found: error
