@@ -88,15 +88,17 @@ fn left_out(shaders: &[Arc<Shader>]) -> Option<&'static str> {
 /// launch so cutscene lighting, tiling, and bakes never miss their first frame.
 fn scene_input(shaders: &[Arc<Shader>]) -> bool {
     shaders.iter().any(|s| {
-        matches!(
-            s.hash.as_str(),
-            "970c4fbb3b017c0e"
-                | "068c90badc86f1fd"
-                | "e4a7e088c7780ce8"
-                | "ebe4e53f031f5249"
-                | "2cc4c197ee29e291"
-                | "369cbe906ea72764"
-        ) || crate::draw::BAKE_PIXEL_SHADERS.contains(&s.hash.as_str())
+        s.ambient.is_some()
+            || matches!(
+                s.hash.as_str(),
+                "970c4fbb3b017c0e"
+                    | "068c90badc86f1fd"
+                    | "e4a7e088c7780ce8"
+                    | "ebe4e53f031f5249"
+                    | "2cc4c197ee29e291"
+                    | "369cbe906ea72764"
+            )
+            || crate::draw::BAKE_PIXEL_SHADERS.contains(&s.hash.as_str())
     })
 }
 
@@ -272,6 +274,28 @@ fn shared_budget() -> bool {
     *ON.get_or_init(|| std::env::var_os("VICTORY_PIPELINE_WAIT_SHARED").is_none_or(|v| v != "0"))
 }
 
+/// Concurrent lighting and screen passes share a wall-clock deadline. Reserving
+/// all the time for one recording thread would drop other one-shot passes even
+/// if their pipelines became ready within the same wait.
+fn screen_wait_left(
+    since: &Mutex<Option<(u64, Instant)>>,
+    frame: u64,
+    now: Instant,
+    budget: Duration,
+) -> Duration {
+    let mut since = since.lock().unwrap_or_else(|e| e.into_inner());
+    match *since {
+        Some((active, _)) if active > frame => Duration::ZERO,
+        Some((active, start)) if active == frame => {
+            budget.saturating_sub(now.saturating_duration_since(start))
+        }
+        _ => {
+            *since = Some((frame, now));
+            budget
+        }
+    }
+}
+
 /// Waits for `p` while frame `frame` has budget left.
 fn wait(p: &Pending, frame: u64) {
     let screen = p.screen && screens_first();
@@ -282,9 +306,11 @@ fn wait(p: &Pending, frame: u64) {
     // The frame the budget belongs to, and what was waited of it (or is
     // taken by a thread waiting now); of the passes over the screen too.
     static SPENT: [Mutex<(u64, Duration)>; 2] = [const { Mutex::new((u64::MAX, Duration::ZERO)) }; 2];
-    let spent_of = &SPENT[usize::from(screen)];
+    static SCREEN_SINCE: Mutex<Option<(u64, Instant)>> = Mutex::new(None);
     let shared = shared_budget();
-    let left = {
+    let started = Instant::now();
+    let spent_of = (!(screen && shared)).then(|| &SPENT[usize::from(screen)]);
+    let left = if let Some(spent_of) = spent_of {
         let mut spent = spent_of.lock().unwrap_or_else(|e| e.into_inner());
         if spent.0 != frame {
             *spent = (frame, Duration::ZERO);
@@ -294,11 +320,12 @@ fn wait(p: &Pending, frame: u64) {
             spent.1 += left;
         }
         left
+    } else {
+        screen_wait_left(&SCREEN_SINCE, frame, started, budget)
     };
     if left.is_zero() {
         return;
     }
-    let started = Instant::now();
     let (lock, done) = &DONE;
     let mut held = lock.lock().unwrap_or_else(|e| e.into_inner());
     while p.made.get().is_none() {
@@ -318,7 +345,7 @@ fn wait(p: &Pending, frame: u64) {
             "a pass over the screen was waited for (VICTORY_SCREEN_WAIT_MS=0: dropped past half a second a frame)"
         );
     }
-    {
+    if let Some(spent_of) = spent_of {
         let mut spent = spent_of.lock().unwrap_or_else(|e| e.into_inner());
         // A frame that began meanwhile has its own budget.
         if spent.0 == frame {
@@ -558,6 +585,21 @@ fn drained() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlapping_screen_waits_have_time_until_the_same_deadline() {
+        let since = Mutex::new(None);
+        let start = Instant::now();
+        let budget = Duration::from_secs(10);
+        assert_eq!(screen_wait_left(&since, 7, start, budget), budget);
+        assert_eq!(
+            screen_wait_left(&since, 7, start + Duration::from_secs(2), budget),
+            Duration::from_secs(8),
+        );
+        assert_eq!(screen_wait_left(&since, 7, start + budget, budget), Duration::ZERO);
+        assert_eq!(screen_wait_left(&since, 8, start + budget, budget), budget);
+        assert_eq!(screen_wait_left(&since, 7, start + budget, budget), Duration::ZERO);
+    }
 
     #[test]
     fn worker_count_follows_the_processors_and_the_switch() {

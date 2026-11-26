@@ -22,6 +22,10 @@ jobs:
         working-directory: cool_fox
         run: cargo build --release --locked --target x86_64-pc-windows-msvc -p victory --features diagnostics
 
+      - name: Test GPU pipeline scheduling
+        working-directory: cool_fox
+        run: cargo test --release --locked --target x86_64-pc-windows-msvc -p victory-gpu --features diagnostics --lib pipeline::make::tests
+
       - name: Assemble and verify the portable build
         shell: pwsh
         run: |

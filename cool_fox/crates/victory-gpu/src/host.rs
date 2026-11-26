@@ -1038,7 +1038,12 @@ fn create() -> windows::core::Result<Host> {
         let adapter = CreateDXGIFactory2::<IDXGIFactory4>(DXGI_CREATE_FACTORY_FLAGS(0))
             .and_then(|factory| factory.EnumAdapterByLuid::<IDXGIAdapter3>(device.GetAdapterLuid()))
             .ok();
-        tracing::info!("host D3D12 device ready");
+        if let Some(desc) = adapter.as_ref().and_then(|adapter| adapter.GetDesc1().ok()) {
+            let name = String::from_utf16_lossy(&desc.Description);
+            tracing::info!(adapter = name.trim_end_matches('\0'), "host D3D12 device ready");
+        } else {
+            tracing::info!("host D3D12 device ready");
+        }
         Ok(Host {
             device,
             queue,
@@ -6033,7 +6038,11 @@ impl Host {
             let crumbs = match dred.GetAutoBreadcrumbsOutput() {
                 Ok(crumbs) => crumbs,
                 Err(e) => {
-                    text.push_str(&format!("; no breadcrumbs ({e})"));
+                    if dred_any() {
+                        text.push_str(&format!("; no breadcrumbs ({e})"));
+                    } else {
+                        text.push_str("; enable VICTORY_D3D12_DRED=light to collect GPU breadcrumbs");
+                    }
                     return text;
                 }
             };

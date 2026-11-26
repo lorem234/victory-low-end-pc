@@ -138,6 +138,13 @@ the Rust toolchain pinned by cool_fox with the `x86_64-pc-windows-msvc` target,
 
 **Not tested by us**: all our runs were under Linux.
 
+The Windows launcher defaults to a 1920×1080 display mode and waits for
+texture writes before refreshing GPU copies. It disables wave-wide lowering,
+which has caused GPU device resets on the D3D12 backend, and enables DRED
+breadcrumbs to record GPU progress if a reset recurs. The default lighting
+uses the fork's ambient estimate. The translated ray-tracing builder is
+experimental and has [known gaps](cool_fox/docs/fork-ray-tracing.md#known-gaps).
+
 > **The patches alone do not give the ~100 ms figure.** Most of the gain comes
 > from three settings (`VICTORY_CARD_BUFFERS_MB=1024` above all, with `VICTORY_CARD_WINDOWS_MB=256`,
 > `VICTORY_TEXTURE_MIP_DROP=1` and `VICTORY_LEVELS_ON_DEMAND=0`). Start the
@@ -222,17 +229,16 @@ and a Windows SDK.
    # SRC_DIR=$PWD/cool_fox ./scripts/build.sh
    ```
    The result is `cool_fox\target\x86_64-pc-windows-msvc\release\victory.exe`.
-3. Run with the measured settings (`run.cmd` starts `run.ps1` without
+3. Run with the Windows settings (`run.cmd` starts `run.ps1` without
    touching PowerShell's script policy):
    ```powershell
-   .\scripts\run.cmd -Exe .\cool_fox\target\release\victory.exe -Game "D:\path\to\your\copy\<its executable>"
+   .\scripts\run.cmd -Exe .\cool_fox\target\x86_64-pc-windows-msvc\release\victory.exe -Game "D:\path\to\your\copy\game.exe"
    ```
    The script first clears every `VICTORY_*` variable left in your
    environment (other forks' guides set some system-wide), then prints
-   "victory-gtx1660: settings in effect:" with every value. **Check that this
-   list shows `VICTORY_CARD_BUFFERS_MB=1024`, `VICTORY_CARD_WINDOWS_MB=256`,
-   `VICTORY_TEXTURE_MIP_DROP=1` and `VICTORY_LEVELS_ON_DEMAND=0`** before
-   comparing frame rates.
+   "victory-gtx1660: settings in effect:" with every value. The low-memory
+   defaults are `VICTORY_CARD_BUFFERS_MB=512`, `VICTORY_CARD_WINDOWS_MB=256`,
+   `VICTORY_TEXTURE_MIP_DROP=3` and `VICTORY_LEVELS_ON_DEMAND=1`.
    If video memory runs short (stutter, textures missing), add `-MipDrop 2` or `3`;
    `-Console series-x` selects the larger console profile (slower).
 4. The first run translates every shader and compiles pipelines: expect
